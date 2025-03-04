@@ -1,3 +1,8 @@
+data/coco_qa
+data/train2014
+data/val2014
+data/instances_train2014.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
