@@ -1,6 +1,6 @@
 import os
 import argparse
-from http.client import responses
+import json
 
 from pycocotools.coco import COCO
 import requests
@@ -19,14 +19,15 @@ def download_cocoqa() -> None:
     except Exception as e:
         print('Error while downloading COCO-QA dataset: %s' % e)
 
-def download_coco_images(category: str) -> None:
+def download_coco_images(category: str,) -> None:
     """
     Download COCO images based on super category according to link:
     https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
     :param category:
     :return:
     """
-    annotation_file = 'instances_train2014.json'
+    annotation_file = 'annotations_trainval2014/annotations/instances_train2014.json'
+    output_dir = 'train2014'
     if not os.path.exists(annotation_file):
         raise FileNotFoundError('Annotation file not found')
 
@@ -41,10 +42,9 @@ def download_coco_images(category: str) -> None:
     for cat_id in cat_ids:
         img_ids.extend(coco.getImgIds(catIds=cat_id))
     print(f'Found {len(img_ids)} images for category {category}')
-    output_dir = 'train2014'
     os.makedirs(output_dir, exist_ok=True)
 
-    for img_id in img_ids[:10]:
+    for img_id in img_ids:
         try:
             img_info = coco.loadImgs(img_id)[0]
             img_url = img_info['coco_url']
@@ -58,12 +58,66 @@ def download_coco_images(category: str) -> None:
             print(f'Error while downloading image {img_id}: {e}')
     print(f'Download completed for category {category}, saved at {output_dir}')
 
+def process_cocoqa(mode: str) -> None:
+    """
+    :param mode: 'train' or 'test'
+    Process COCO-QA dataset to create train and test metadata files
+    :return:
+    """
+    questions_file = f"coco_qa/{mode}/questions.txt"
+    answers_file = f"coco_qa/{mode}/answers.txt"
+    img_ids_file = f"coco_qa/{mode}/img_ids.txt"
+    types_file = f"coco_qa/{mode}/types.txt"
+    output_file = f"cocoqa_raw_{mode}.json"
+
+    with open(questions_file, "r") as qf, \
+            open(answers_file, "r") as af, \
+            open(img_ids_file, "r") as iif, \
+            open(types_file, "r") as tf:
+        questions = qf.readlines()
+        answers = af.readlines()
+        img_ids = iif.readlines()
+        types = tf.readlines()
+
+        questions = [line.rstrip('\n') for line in questions]
+        answers = [line.rstrip('\n') for line in answers]
+        img_ids = [line.rstrip('\n') for line in img_ids]
+        types = [line.rstrip('\n') for line in types]
+
+        assert len(questions) == len(answers) == len(img_ids) == len(types), \
+            "Length of questions, answers, img_ids and types should be the same"
+
+    subtype = 'train2014' if mode == 'train' else 'val2014'
+    cocoqa_data = []
+    for idx, (question, answer, img_id, type) in enumerate(zip(questions, answers, img_ids, types)):
+        img_path = f"{subtype}/COCO_{subtype}_{int(img_id):012d}.jpg"
+
+        if not os.path.exists(img_path):
+            continue
+
+        question = f"{question.strip()} ?"
+        data_entry = {
+            "ques_id": idx,
+            "question": question,
+            "img_path": img_path,
+            "ans": answer,
+            "type": type
+        }
+        cocoqa_data.append(data_entry)
+
+    with open(output_file, 'w') as f:
+        json.dump(cocoqa_data, f)
+    print(f"Processed {mode} data saved at {output_file}")
+
 def main(args) -> None:
     if args.download:
         print('Downloading COCO-QA dataset...')
         # download_cocoqa()
     if args.category:
+        print(f'Downloading COCO images for category {args.category}...')
         download_coco_images(args.category)
+    # process_cocoqa('train')
+    # process_cocoqa('test')
 
 
 if __name__ == '__main__':
@@ -76,7 +130,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--category',
         type=str,
-        default='vehicle',
+        default=None,
         help='Category of images to download'
     )
     args = parser.parse_args()
