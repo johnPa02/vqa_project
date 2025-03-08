@@ -1,2 +1,8 @@
 requests
 pycocotools
+notebook
+matplotlib
+pillow
+numpy
+h5py
+nltk

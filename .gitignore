@@ -2,6 +2,10 @@ data/coco_qa
 data/train2014
 data/val2014
 data/instances_train2014.json
+data/annotations_trainval2014/
+data/cocoqa_raw_train.json
+data/cocoqa_raw_test.json
+notebook/.ipynb_checkpoints
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
