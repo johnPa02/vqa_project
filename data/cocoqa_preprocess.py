@@ -5,6 +5,8 @@ import json
 from pycocotools.coco import COCO
 import requests
 
+ANN_FILE = 'annotations_trainval2014/annotations/instances_val2014.json'
+IMAGE_DOWNLOAD_DIR = 'val2014'
 
 def download_cocoqa() -> None:
     """
@@ -19,19 +21,18 @@ def download_cocoqa() -> None:
     except Exception as e:
         print('Error while downloading COCO-QA dataset: %s' % e)
 
-def download_coco_images(category: str,) -> None:
+def get_images_by_category(category: str, nums: int) -> list[int]:
     """
-    Download COCO images based on super category according to link:
-    https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
-    :param category:
+    Get all images from COCO dataset based on super category
+    :param
+    category: super category of images
+    nums: number of images to retain
     :return:
     """
-    annotation_file = 'annotations_trainval2014/annotations/instances_train2014.json'
-    output_dir = 'train2014'
-    if not os.path.exists(annotation_file):
+    if not os.path.exists(ANN_FILE):
         raise FileNotFoundError('Annotation file not found')
 
-    coco = COCO(annotation_file)
+    coco = COCO(ANN_FILE)
     # Get all category names in super category
     categories = coco.loadCats(coco.getCatIds())
     cat_ids = [cat['id'] for cat in categories if cat['supercategory'] == category]
@@ -42,13 +43,16 @@ def download_coco_images(category: str,) -> None:
     for cat_id in cat_ids:
         img_ids.extend(coco.getImgIds(catIds=cat_id))
     print(f'Found {len(img_ids)} images for category {category}')
-    os.makedirs(output_dir, exist_ok=True)
+    return img_ids[:nums]
 
+def download_coco_images(img_ids: list[int]) -> None:
+    os.makedirs(IMAGE_DOWNLOAD_DIR, exist_ok=True)
+    coco = COCO(ANN_FILE)
     for img_id in img_ids:
         try:
             img_info = coco.loadImgs(img_id)[0]
             img_url = img_info['coco_url']
-            img_path = os.path.join(output_dir, img_info['file_name'])
+            img_path = os.path.join(IMAGE_DOWNLOAD_DIR, img_info['file_name'])
 
             response = requests.get(img_url)
             with open(img_path, 'wb') as f:
@@ -56,9 +60,9 @@ def download_coco_images(category: str,) -> None:
             print(f'Successfully downloaded {img_path}')
         except Exception as e:
             print(f'Error while downloading image {img_id}: {e}')
-    print(f'Download completed for category {category}, saved at {output_dir}')
+    print(f'Download completed, saved at {IMAGE_DOWNLOAD_DIR}')
 
-def process_cocoqa(mode: str) -> None:
+def process_cocoqa(mode: str, cat_img_ids: list[int]) -> None:
     """
     :param mode: 'train' or 'test'
     Process COCO-QA dataset to create train and test metadata files
@@ -92,7 +96,7 @@ def process_cocoqa(mode: str) -> None:
     for idx, (question, answer, img_id, type) in enumerate(zip(questions, answers, img_ids, types)):
         img_path = f"{subtype}/COCO_{subtype}_{int(img_id):012d}.jpg"
 
-        if not os.path.exists(img_path):
+        if int(img_id) not in cat_img_ids:
             continue
 
         question = f"{question.strip()} ?"
@@ -110,15 +114,18 @@ def process_cocoqa(mode: str) -> None:
     print(f"Processed {mode} data saved at {output_file}")
 
 def main(args) -> None:
+    # preprocess pipeline
+    # 1. download cocoqa dataset
     if args.download:
         print('Downloading COCO-QA dataset...')
         # download_cocoqa()
-    if args.category:
-        print(f'Downloading COCO images for category {args.category}...')
-        download_coco_images(args.category)
-    # process_cocoqa('train')
-    # process_cocoqa('test')
-
+    # 2. get vehicle images from COCO dataset
+    img_ids = get_images_by_category(args.category, 3550)
+    # 3. create metadata files for train and test
+    process_cocoqa('test', img_ids)
+    # 4. classify questions involving vehicles (run OLLAMA_SERVER notebook)
+    # 5. download images
+    # download_coco_images()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
