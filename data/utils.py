@@ -1,7 +1,7 @@
 import os
 import json
 
-DIR = '../data/train2014/'
+DIR = 'data/train2014/'
 def remove_image(filtered_file: str) -> None:
     """
     Remove image that are not in the filtered file from the image directory
@@ -23,4 +23,4 @@ def remove_image(filtered_file: str) -> None:
     print(f"Removed images not in {filtered_file} from {DIR}")
 
 if __name__ == '__main__':
-    remove_image('../data/filtered_data_train.json')
+    remove_image('data/filtered_data_train.json')

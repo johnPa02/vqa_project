@@ -3,9 +3,7 @@ import argparse
 import numpy as np
 import h5py
 from nltk.tokenize import word_tokenize
-import spacy
 import json
-from random import shuffle, seed
 from collections import defaultdict
 from pathlib import Path
 
@@ -36,7 +34,6 @@ def prepro_question(imgs, params):
 
 def build_vocab_question(imgs, params):
     # Build vocabulary for question and answers.
-
     count_thr = params['word_count_threshold']
 
     # Count up the number of words using defaultdict to simplify the process
@@ -96,6 +93,7 @@ def get_top_answers(imgs, params):
 
     # Get top 'num_ans' answers
     vocab = [ans for _, ans in cw[:params['num_ans']]]
+    # vocab += ['UNK']
 
     return vocab
 
@@ -124,19 +122,9 @@ def encode_answer(imgs, atoi):
     ans_arrays = np.zeros(N, dtype='uint32')
 
     for i, img in enumerate(imgs):
-        ans_arrays[i] = atoi[img['ans']]
+        ans_arrays[i] = atoi.get(img['ans'], len(atoi) - 1) # default: UNK
 
     return ans_arrays
-
-
-# def encode_mc_answer(imgs, atoi):
-#     N = len(imgs)
-#     mc_ans_arrays = np.zeros((N, 18), dtype='uint32')
-#
-#     for i, img in enumerate(imgs):
-#         for j, ans in enumerate(img['MC_ans']):
-#             mc_ans_arrays[i, j] = atoi.get(ans, 0)
-#     return mc_ans_arrays
 
 
 def filter_question(imgs, atoi):
@@ -158,106 +146,101 @@ def get_unique_img(imgs):
 
 
 def main(params):
-    # Load spaCy tokenizer
-    if params['token_method'] == 'spacy':
-        print('Loading spaCy tokenizer for NLP...')
-        params['spacy'] = spacy.load('en_core_web_sm')  # Load the spaCy model directly
+    imgs_train = json.load(open(params['input_train_json'], 'r'))
+    imgs_test = json.load(open(params['input_test_json'], 'r'))
 
-    # Read training and test images
-    with open(params['input_train_json'], 'r') as f:
-        imgs_train = json.load(f)
-
-    with open(params['input_test_json'], 'r') as f:
-        imgs_test = json.load(f)
-
-    # Get top answers
+    # imgs_train = imgs_train[:5000]
+    # imgs_test = imgs_test[:5000]
+    # get top answers
     top_ans = get_top_answers(imgs_train, params)
     atoi = {w: i for i, w in enumerate(top_ans)}
-    itoa = {i : w for i, w in enumerate(top_ans)}
+    itoa = {i: w for i, w in enumerate(top_ans)}
 
-    # Filter questions not in top answers
+    # filter question, which isn't in the top answers.
     imgs_train = filter_question(imgs_train, atoi)
 
-    # Make the process reproducible
-    seed(123)
-    shuffle(imgs_train)  # Shuffle the order
-
-    # Tokenization and preprocessing for training and testing questions
+    # tokenization and preprocessing training question
     imgs_train = prepro_question(imgs_train, params)
+    # tokenization and preprocessing testing question
     imgs_test = prepro_question(imgs_test, params)
 
-    # Build vocabulary for questions
+    # create the vocab for question
     imgs_train, vocab = build_vocab_question(imgs_train, params)
-    itow = {i : w for i, w in enumerate(vocab)}
-    wtoi = {w: i for i, w in enumerate(vocab)}
+    itow = {i: w for i, w in enumerate(vocab)}  # a 1-indexed vocab translation table
+    wtoi = {w: i for i, w in enumerate(vocab)}  # inverse table
 
-    # Encode questions for training and testing
     ques_train, ques_length_train, question_id_train = encode_question(imgs_train, params, wtoi)
+
     imgs_test = apply_vocab_question(imgs_test, wtoi)
     ques_test, ques_length_test, question_id_test = encode_question(imgs_test, params, wtoi)
 
-    # Get unique images for train and test
+    # get the unique image for train and test
     unique_img_train, img_pos_train = get_unique_img(imgs_train)
     unique_img_test, img_pos_test = get_unique_img(imgs_test)
 
-    # Get the answer encoding
-    A = encode_answer(imgs_train, atoi)
+    # get the answer encoding.
+    ans_train = encode_answer(imgs_train, atoi)
 
-    # Create output h5 file for training set
-    output_h5_path = Path(params['output_h5'])
-    with h5py.File(output_h5_path, "w") as f:
-        f.create_dataset("ques_train", dtype='uint32', data=ques_train)
-        f.create_dataset("ques_length_train", dtype='uint32', data=ques_length_train)
-        f.create_dataset("answers", dtype='uint32', data=A)
-        f.create_dataset("question_id_train", dtype='uint32', data=question_id_train)
-        f.create_dataset("img_pos_train", dtype='uint32', data=img_pos_train)
+    ans_test = encode_answer(imgs_test, atoi)
 
-        f.create_dataset("ques_test", dtype='uint32', data=ques_test)
-        f.create_dataset("ques_length_test", dtype='uint32', data=ques_length_test)
-        f.create_dataset("question_id_test", dtype='uint32', data=question_id_test)
-        f.create_dataset("img_pos_test", dtype='uint32', data=img_pos_test)
+    # get the split
+    N_train = len(imgs_train)
+    N_test = len(imgs_test)
+    # since the train image is already suffled, we just use the last val_num image as validation
+    # train = 0, val = 1, test = 2
+    split_train = np.zeros(N_train)
+    # split_train[N_train - params['val_num']: N_train] = 1
 
-    print(f'Wrote to {output_h5_path}')
+    split_test = np.zeros(N_test)
+    split_test[:] = 2
 
-    # Create output JSON file
-    output_json_path = Path(params['output_json'])
-    out = {
-        'ix_to_word': itow,
-        'ix_to_ans': itoa,
-        'unique_img_train': unique_img_train,
-        'unique_img_test': unique_img_test
-    }
-    with open(output_json_path, 'w') as f:
+    # create output h5 file for training set.
+    f = h5py.File(params['output_h5'], "w")
+    f.create_dataset("ques_train", dtype='uint32', data=ques_train)
+    f.create_dataset("ques_test", dtype='uint32', data=ques_test)
+
+    f.create_dataset("answers", dtype='uint32', data=ans_train)
+    f.create_dataset("ans_test", dtype='uint32', data=ans_test)
+
+    f.create_dataset("ques_id_train", dtype='uint32', data=question_id_train)
+    f.create_dataset("ques_id_test", dtype='uint32', data=question_id_test)
+
+    f.create_dataset("img_pos_train", dtype='uint32', data=img_pos_train)
+    f.create_dataset("img_pos_test", dtype='uint32', data=img_pos_test)
+
+    f.create_dataset("ques_len_train", dtype='uint32', data=ques_length_train)
+    f.create_dataset("ques_len_test", dtype='uint32', data=ques_length_test)
+    f.close()
+
+    # create output json file
+    out = {}
+    out['ix_to_word'] = itow  # encode the (1-indexed) vocab
+    out['ix_to_ans'] = itoa
+    out['unique_img_train'] = unique_img_train
+    out['unique_img_test'] = unique_img_test
+    with open(params['output_json'], 'w') as f:
         json.dump(out, f)
-
-    print(f'Wrote to {output_json_path}')
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # input json
-    parser.add_argument('--input_train_json', required=True, help='input json file to process into hdf5')
-    parser.add_argument('--input_test_json', required=True, help='input json file to process into hdf5')
-    parser.add_argument('--num_ans', required=True, type=int,
-                        help='number of top answers for the final classifications.')
+    parser.add_argument('--input_train_json', default='../data/cocoqa_raw_train.json',
+                        help='input json file to process into hdf5')
+    parser.add_argument('--input_test_json', default='../data/cocoqa_raw_test.json',
+                        help='input json file to process into hdf5')
 
-    parser.add_argument('--output_json', default='../data/data_prepro.json', help='output json file')
-    parser.add_argument('--output_h5', default='../data/data_prepro.h5', help='output h5 file')
+    parser.add_argument('--output_json', default='../data/cocoqa_data_prepro.json', help='output json file')
+    parser.add_argument('--output_h5', default='../data/cocoqa_data_prepro.h5', help='output h5 file')
 
     # options
     parser.add_argument('--max_length', default=26, type=int,
                         help='max length of a caption, in number of words. captions longer than this get clipped.')
     parser.add_argument('--word_count_threshold', default=0, type=int,
                         help='only words that occur more than this number of times will be put in vocab')
-    parser.add_argument('--num_test', default=0, type=int,
-                        help='number of test images (to withold until very very end)')
-    parser.add_argument('--token_method', default='nltk', help='token method. set "spacy" for unigram paraphrasing')
-    parser.add_argument('--spacy_data', default='spacy_data', help='location of spacy NLP model')
-
-    parser.add_argument('--batch_size', default=10, type=int)
-
+    parser.add_argument('--token_method', default='nltk', help='token method, nltk is much more slower.')
+    parser.add_argument("--num_ans", default=20, type=int, help="Number of top answers to use")
     args = parser.parse_args()
-    params = vars(args)
-    print(f"Parsed input parameters:\n{json.dumps(params, indent=2)}")
+    params = vars(args)  # convert to ordinary dict
     main(params)
