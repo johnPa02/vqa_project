@@ -94,7 +94,6 @@ def get_top_answers(imgs, params):
     # Get top 'num_ans' answers
     vocab = [ans for _, ans in cw[:params['num_ans']]]
     # vocab += ['UNK']
-
     return vocab
 
 
