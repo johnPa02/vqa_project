@@ -53,6 +53,9 @@ def download_coco_images(img_ids: list[int]) -> None:
             img_info = coco.loadImgs(img_id)[0]
             img_url = img_info['coco_url']
             img_path = os.path.join(IMAGE_DOWNLOAD_DIR, img_info['file_name'])
+            if os.path.exists(img_path):
+                print(f'{img_path} already exists, skipping download')
+                continue
 
             response = requests.get(img_url)
             with open(img_path, 'wb') as f:
@@ -120,13 +123,18 @@ def main(args) -> None:
         print('Downloading COCO-QA dataset...')
         # download_cocoqa()
     # 2. get vehicle images from COCO dataset
-    img_ids = get_images_by_category(args.category, 3550)
+    # img_ids = get_images_by_category(args.category, 3550)
     # 3. create metadata files for train and test
-    process_cocoqa('test', img_ids)
+    # process_cocoqa('test', img_ids)
     # 4. classify questions involving vehicles (run OLLAMA_SERVER notebook)
     # 5. download images
+    with open('vehicle_raw_test.json', 'r') as f:
+        data = json.load(f)
+        img_ids = [int(d['img_path'].split('_')[-1].replace('.jpg', '')) for d in data]
     # download_coco_images()
-
+    img_ids = list(set(img_ids))
+    print(f'Number of unique images: {len(img_ids)}')
+    download_coco_images(img_ids)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
