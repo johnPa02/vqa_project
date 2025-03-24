@@ -1,14 +1,14 @@
-# Visual Question Answering 
+# 🧠 Visual Question Answering 
 This project implements a Visual Question Answering (VQA) pipeline using two model architectures:
-- 🔹 LSTM + Multimodal Fusion
+- 🔹 LSTM + CNN
 - 🔸 Attention
 ---
-## Dataset
+## 📁 Dataset
 The dataset used for this project is the COCO-QA dataset.
 
 ![img_1.png](images/img_1.png)
 
-## Setup
+## 🔧 Setup
 ### 1. Create a virtual environment
 ```bash
 python -m venv vqa_env
@@ -22,14 +22,14 @@ pip install -r requirements.txt
 ```bash
 python data/cocoqa_preprocess.py
 ```
-## Preprocessing
+## 🧼 Preprocessing
 ### 1. Create Question Features
 ```bash
 python data/preprocessing.py
 ```
 ### 2. Create Image Features
 Run notebook: `data/processing.ipynb` on Kaggle/Colab to use GPU for faster processing.
-## Training
+## 🚀 Training
 ### 1. LSTM + Multimodal Fusion
 ```bash
 python train_lstm.py --batch_size 16 --max_epochs 1000
@@ -38,5 +38,5 @@ python train_lstm.py --batch_size 16 --max_epochs 1000
 ```bash
 python train_attention.py --batch_size 16 --max_epochs 1000
 ```
-## Evaluation
+## 🧪 Evaluation
 You can use notebook `vqa_main.ipynb` for end-to-end training and evaluation.
