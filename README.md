@@ -1,7 +1,9 @@
-# 🧠 Visual Question Answering 
+# 🧠 Visual Question Answering
 This project implements a Visual Question Answering (VQA) pipeline using two model architectures:
 - 🔹 LSTM + CNN
 - 🔸 Attention
+
+![img.png](images/img.png)
 ---
 ## 📁 Dataset
 The dataset used for this project is the COCO-QA dataset.
@@ -40,3 +42,6 @@ python train_attention.py --batch_size 16 --max_epochs 1000
 ```
 ## 🧪 Evaluation
 You can use notebook `vqa_main.ipynb` for end-to-end training and evaluation.
+## 📄 References
+- [1] VQA: Visual Question Answering (Agrawal et al, 2016): https://arxiv.org/pdf/1505.00468v6.pdf
+- [2] Hierarchical Question-Image Co-Attention for Visual Question Answering (Lu et al, 2017): https://arxiv.org/pdf/1606.00061.pdf
